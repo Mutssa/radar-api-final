@@ -1,0 +1,1197 @@
+ <!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Imobiliário - Plataforma Inteligente</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css" />
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .floating-animation {
+            animation: floating 6s ease-in-out infinite;
+        }
+        
+        @keyframes floating {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid #ffffff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .property-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(145deg, #ffffff, #f8fafc);
+        }
+        
+        .property-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+        }
+        
+        .page {
+            display: none;
+        }
+        
+        .page.active {
+            display: block;
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .input-focus {
+            transition: all 0.3s ease;
+        }
+        
+        .input-focus:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .neon-text {
+            text-shadow: 0 0 10px rgba(102, 126, 234, 0.8);
+        }
+        
+        .grid-pattern {
+            background-image: 
+                radial-gradient(circle at 1px 1px, rgba(255,255,255,0.1) 1px, transparent 0);
+            background-size: 20px 20px;
+        }
+        
+        .progress-bar {
+            width: 0%;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+        
+        .saved-link {
+            transition: all 0.3s ease;
+        }
+        
+        .saved-link:hover {
+            transform: translateX(5px);
+        }
+        
+        @media (max-width: 768px) {
+            .property-card:hover {
+                transform: none;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <nav id="mainNav" class="bg-white shadow-lg border-b border-gray-200 hidden sticky top-0 z-50">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                        <span class="text-white font-bold">🎯</span>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-800">Radar Imobiliário</h1>
+                        <p class="text-xs text-gray-500">Plataforma Inteligente</p>
+                    </div>
+                </div>
+                
+                <div class="hidden md:flex items-center space-x-6">
+                    <button onclick="showPage('search')" class="nav-btn text-gray-600 hover:text-blue-600 font-medium transition-colors">
+                        🔍 Buscar Imóveis
+                    </button>
+                    <button onclick="showPage('links')" class="nav-btn text-gray-600 hover:text-blue-600 font-medium transition-colors">
+                        📡 Imobiliárias
+                    </button>
+                    <button onclick="showPage('analytics')" class="nav-btn text-gray-600 hover:text-blue-600 font-medium transition-colors">
+                        📊 Analytics
+                    </button>
+                </div>
+                
+                <div class="flex items-center space-x-3">
+                    <div class="hidden md:block text-right">
+                        <div id="userName" class="text-sm font-medium text-gray-800"></div>
+                        <div class="text-xs text-gray-500">Usuário Premium</div>
+                    </div>
+                    <button onclick="logout()" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all">
+                        Sair
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div id="mobileNav" class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 hidden">
+        <div class="flex justify-around py-2">
+            <button onclick="showPage('search')" class="mobile-nav-btn flex flex-col items-center py-2 px-3 text-gray-600">
+                <span class="text-lg">🔍</span>
+                <span class="text-xs">Buscar</span>
+            </button>
+            <button onclick="showPage('links')" class="mobile-nav-btn flex flex-col items-center py-2 px-3 text-gray-600">
+                <span class="text-lg">📡</span>
+                <span class="text-xs">Links</span>
+            </button>
+            <button onclick="showPage('analytics')" class="mobile-nav-btn flex flex-col items-center py-2 px-3 text-gray-600">
+                <span class="text-lg">📊</span>
+                <span class="text-xs">Stats</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="authPage" class="page active min-h-screen gradient-bg">
+        <div class="container mx-auto px-4">
+            <div class="max-w-md mx-auto">
+                <div class="text-center mb-8">
+                    <div class="w-20 h-20 mx-auto mb-6 bg-white rounded-2xl flex items-center justify-center floating-animation shadow-2xl">
+                        <span class="text-4xl">🎯</span>
+                    </div>
+                    <h1 class="text-4xl font-bold text-white mb-2 neon-text">Radar Imobiliário</h1>
+                    <p class="text-blue-100">Inteligência Artificial para Monitoramento Imobiliário</p>
+                </div>
+
+                <div id="loginForm" class="glass-effect rounded-2xl p-8 shadow-2xl">
+                    <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Entrar na Plataforma</h2>
+                    
+                    <form onsubmit="handleLogin(event)">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">E-mail:</label>
+                            <input type="email" id="loginEmail" required 
+                                class="input-focus w-full p-3 border border-gray-300 rounded-lg focus:ring-0 focus:border-blue-500"
+                                placeholder="seu@email.com">
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Senha:</label>
+                            <input type="password" id="loginPassword" required 
+                                class="input-focus w-full p-3 border border-gray-300 rounded-lg focus:ring-0 focus:border-blue-500"
+                                placeholder="••••••••">
+                        </div>
+                        
+                        <button type="submit" class="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all mb-4">
+                            🚀 Entrar
+                        </button>
+                    </form>
+                    
+                    <div class="text-center">
+                        <button onclick="showRegisterForm()" class="text-blue-600 hover:text-blue-800 font-medium">
+                            Não tem conta? Cadastre-se aqui
+                        </button>
+                    </div>
+                </div>
+
+                <div id="registerForm" class="glass-effect rounded-2xl p-8 shadow-2xl hidden">
+                    <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Criar Conta</h2>
+                    
+                    <form onsubmit="handleRegister(event)">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Nome Completo:</label>
+                            <input type="text" id="registerName" required 
+                                class="input-focus w-full p-3 border border-gray-300 rounded-lg focus:ring-0 focus:border-blue-500"
+                                placeholder="Seu nome completo">
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">E-mail:</label>
+                            <input type="email" id="registerEmail" required 
+                                class="input-focus w-full p-3 border border-gray-300 rounded-lg focus:ring-0 focus:border-blue-500"
+                                placeholder="seu@email.com">
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Senha:</label>
+                            <input type="password" id="registerPassword" required 
+                                class="input-focus w-full p-3 border border-gray-300 rounded-lg focus:ring-0 focus:border-blue-500"
+                                placeholder="••••••••" minlength="6">
+                        </div>
+                        
+                        <button type="submit" class="w-full py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg font-semibold hover:from-green-600 hover:to-teal-600 transition-all mb-4">
+                            ✨ Criar Conta
+                        </button>
+                    </form>
+                    
+                    <div class="text-center">
+                        <button onclick="showLoginForm()" class="text-blue-600 hover:text-blue-800 font-medium">
+                            Já tem conta? Faça login
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="searchPage" class="page">
+        <div class="container mx-auto px-4 py-6 pb-20 md:pb-6">
+            <div class="glass-effect rounded-3xl shadow-2xl p-8 mb-8">
+                <div class="text-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">🔍 Buscar Imóveis</h3>
+                    <p class="text-gray-600">Encontre imóveis nos sites monitorados</p>
+                </div>
+                
+                <div class="mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+                        <div>
+                            <select id="typeFilter" class="input-focus w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500">
+                                <option value="">🏠 Tipo</option>
+                                <option value="venda">💰 Venda</option>
+                                <option value="aluguel">🔑 Aluguel</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="bedroomsFilter" class="input-focus w-full p-3 border-2 border-gray-200 rounded-xl focus:border-purple-500">
+                                <option value="">🛏️ Dormitórios</option>
+                                <option value="1">1 dormitório</option>
+                                <option value="2">2 dormitórios</option>
+                                <option value="3">3 dormitórios</option>
+                                <option value="4">4+ dormitórios</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="suiteFilter" class="input-focus w-full p-3 border-2 border-gray-200 rounded-xl focus:border-green-500">
+                                <option value="">🛁 Suítes</option>
+                                <option value="0">Sem suíte</option>
+                                <option value="1">1 suíte</option>
+                                <option value="2">2+ suítes</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="parkingFilter" class="input-focus w-full p-3 border-2 border-gray-200 rounded-xl focus:border-orange-500">
+                                <option value="">🚗 Vagas</option>
+                                <option value="0">Sem vaga</option>
+                                <option value="1">1 vaga</option>
+                                <option value="2">2+ vagas</option>
+                            </select>
+                        </div>
+                        <div>
+                            <input type="text" id="locationFilter" 
+                                class="input-focus w-full p-3 border-2 border-gray-200 rounded-xl focus:border-teal-500" 
+                                placeholder="📍 Localização">
+                        </div>
+                        <div>
+                            <input type="number" id="areaFilter" 
+                                class="input-focus w-full p-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500" 
+                                placeholder="📐 Área mín (m²)">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <input type="number" id="minPrice" 
+                                class="input-focus w-full p-3 border-2 border-gray-200 rounded-xl focus:border-green-500" 
+                                placeholder="💵 Preço mínimo">
+                        </div>
+                        <div>
+                            <input type="number" id="maxPrice" 
+                                class="input-focus w-full p-3 border-2 border-gray-200 rounded-xl focus:border-green-500" 
+                                placeholder="💎 Preço máximo">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-4 justify-center">
+                    <button id="searchBtn" onclick="performSearch()" class="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl hover:from-blue-700 hover:to-purple-700 flex items-center text-lg font-semibold shadow-lg transition-all">
+                        <span id="searchSpinner" class="spinner mr-3 hidden"></span>
+                        🎯 Buscar Imóveis
+                    </button>
+                    <button onclick="clearFilters()" class="px-8 py-4 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-2xl hover:from-gray-600 hover:to-gray-700 flex items-center text-lg font-semibold shadow-lg transition-all">
+                        🗑️ Limpar Filtros
+                    </button>
+                </div>
+
+                <div class="mt-4 text-center">
+                    <span id="linksInfo" class="text-sm text-gray-600 bg-blue-50 px-4 py-2 rounded-full">
+                        📡 0 imobiliárias monitoradas
+                    </span>
+                </div>
+
+                <div id="progressContainer" class="mt-6 hidden">
+                    <div class="glass-effect p-6 rounded-2xl">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-lg font-semibold text-gray-700">🔄 Processando Busca</span>
+                            <span id="progressText" class="text-2xl font-bold text-blue-600">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-4 mb-4 overflow-hidden">
+                            <div id="progressBar" class="progress-bar h-4 rounded-full"></div>
+                        </div>
+                        <div id="currentSource" class="text-sm text-gray-600 flex items-center">
+                            <span class="animate-pulse mr-2">🌐</span>
+                            <span>Aguardando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-5 gap-8">
+                <div class="xl:col-span-2">
+                    <div class="glass-effect rounded-3xl shadow-2xl overflow-hidden">
+                        <div class="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+                            <div class="flex justify-between items-center">
+                                <h3 class="text-xl font-bold">📋 Imóveis Encontrados</h3>
+                                <span id="resultsCount" class="bg-white bg-opacity-20 px-4 py-2 rounded-full text-sm font-semibold">
+                                    0 imóveis
+                                </span>
+                            </div>
+                        </div>
+                        <div id="propertiesList" class="p-6 max-h-[600px] overflow-y-auto">
+                            <div class="text-center py-16">
+                                <div class="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center floating-animation">
+                                    <span class="text-4xl">🔍</span>
+                                </div>
+                                <h4 class="text-xl font-semibold text-gray-700 mb-2">Pronto para Buscar</h4>
+                                <p class="text-gray-500">Configure os filtros e inicie a busca</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="xl:col-span-3">
+                    <div class="glass-effect rounded-3xl shadow-2xl overflow-hidden">
+                        <div class="bg-gradient-to-r from-green-600 to-teal-600 p-6 text-white">
+                            <h3 class="text-xl font-bold">🗺️ Mapa dos Imóveis</h3>
+                        </div>
+                        <div id="map" class="h-[600px]"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="linksPage" class="page">
+        <div class="container mx-auto px-4 py-6 pb-20 md:pb-6">
+            <div class="glass-effect rounded-3xl shadow-2xl p-8 mb-8">
+                <div class="text-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">📡 Gerenciar Imobiliárias</h3>
+                    <p class="text-gray-600">Adicione até 30 sites para monitoramento</p>
+                </div>
+
+                <div class="mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input type="text" id="realEstateNameInput" 
+                            class="input-focus p-4 border-2 border-gray-200 rounded-2xl focus:border-blue-500"
+                            placeholder="🏢 Nome da Imobiliária">
+                        <input type="text" id="newLinkInput" 
+                            class="input-focus p-4 border-2 border-gray-200 rounded-2xl focus:border-blue-500"
+                            placeholder="🌐 Link do site (sem https://)">
+                        <button onclick="addLink()" class="px-8 py-4 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-2xl hover:from-green-600 hover:to-teal-600 font-semibold transition-all">
+                            ➕ Adicionar
+                        </button>
+                    </div>
+                    <div class="mt-2 text-sm text-gray-500 text-center">
+                        <span id="linkCount">0</span>/30 imobiliárias monitoradas
+                    </div>
+                </div>
+
+                <div id="savedLinksList">
+                    <div class="text-center py-16">
+                        <div class="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-green-100 to-teal-100 rounded-full flex items-center justify-center floating-animation">
+                            <span class="text-4xl">📡</span>
+                        </div>
+                        <h4 class="text-xl font-semibold text-gray-700 mb-2">Nenhuma Imobiliária</h4>
+                        <p class="text-gray-500">Adicione sites para começar o monitoramento</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="analyticsPage" class="page">
+        <div class="container mx-auto px-4 py-6 pb-20 md:pb-6">
+            <div class="glass-effect rounded-3xl shadow-2xl p-8 mb-8">
+                <div class="text-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">📊 Analytics do Radar</h3>
+                    <p class="text-gray-600">Acompanhe a atividade das imobiliárias monitoradas</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-2xl p-6 text-center">
+                        <div class="text-3xl mb-2">🏢</div>
+                        <div id="totalSources" class="text-3xl font-bold mb-1">0</div>
+                        <div class="text-sm opacity-90">Imobiliárias Ativas</div>
+                    </div>
+                    <div class="bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-2xl p-6 text-center">
+                        <div class="text-3xl mb-2">🏠</div>
+                        <div id="totalProperties" class="text-3xl font-bold mb-1">0</div>
+                        <div class="text-sm opacity-90">Imóveis Monitorados</div>
+                    </div>
+                    <div class="bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-2xl p-6 text-center">
+                        <div class="text-3xl mb-2">📈</div>
+                        <div id="lastScanTime" class="text-lg font-bold mb-1">--</div>
+                        <div class="text-sm opacity-90">Último Scan</div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-6">
+                    <h4 class="text-lg font-semibold mb-4">📈 Atividade por Imobiliária</h4>
+                    <canvas id="analyticsChart" width="400" height="200"></canvas>
+                </div>
+
+                <div class="mt-8 bg-white rounded-2xl overflow-hidden">
+                    <div class="bg-gray-50 px-6 py-4 border-b">
+                        <h4 class="text-lg font-semibold">📋 Detalhes por Imobiliária</h4>
+                    </div>
+                    <div id="analyticsTable" class="p-6">
+                        <div class="text-center py-8 text-gray-500">
+                            Nenhuma imobiliária monitorada
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuração da API
+        const API_BASE_URL = 'http://localhost:8000'; // Alterar para seu domínio
+        
+        // Variáveis globais
+        let currentUser = null;
+        let savedLinks = [];
+        let allProperties = [];
+        let map = null;
+        let markerCluster = null;
+        let analyticsChart = null;
+
+        // Dados mock para demonstração
+        const mockProperties = [
+            {
+                id: '1',
+                title: 'Apartamento 2 Quartos - Vila Madalena',
+                price: 450000,
+                type: 'venda',
+                area: 65,
+                bedrooms: 2,
+                suites: 1,
+                parking: 1,
+                location: 'Vila Madalena, São Paulo',
+                lat: -23.5505,
+                lng: -46.6833,
+                url: 'https://exemplo.com/imovel1',
+                source: 'Viva Real',
+                completeness: 95,
+                method: 'bootstrap'
+            },
+            {
+                id: '2',
+                title: 'Casa 3 Quartos - Pinheiros',
+                price: 3500,
+                type: 'aluguel',
+                area: 120,
+                bedrooms: 3,
+                suites: 1,
+                parking: 2,
+                location: 'Pinheiros, São Paulo',
+                lat: -23.5629,
+                lng: -46.7006,
+                url: 'https://exemplo.com/imovel2',
+                source: 'ZAP Imóveis',
+                completeness: 92,
+                method: 'bootstrap'
+            }
+        ];
+
+        // Autenticação
+        function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            if (email && password) {
+                currentUser = {
+                    name: email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1),
+                    email: email
+                };
+                showDashboard();
+                showNotification('✅ Login realizado com sucesso!', 'success');
+            }
+        }
+
+        function handleRegister(event) {
+            event.preventDefault();
+            const name = document.getElementById('registerName').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            
+            if (name && email && password.length >= 6) {
+                currentUser = {
+                    name: name,
+                    email: email
+                };
+                showDashboard();
+                showNotification('✅ Conta criada com sucesso!', 'success');
+            }
+        }
+
+        function showLoginForm() {
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+        }
+
+        function showRegisterForm() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.remove('hidden');
+        }
+
+        function logout() {
+            currentUser = null;
+            savedLinks = [];
+            allProperties = [];
+            
+            document.getElementById('mainNav').classList.add('hidden');
+            document.getElementById('mobileNav').classList.add('hidden');
+            
+            showPage('auth');
+            
+            showNotification('👋 Logout realizado com sucesso!', 'info');
+        }
+       
+       function showDashboard() {
+            document.getElementById('userName').textContent = currentUser.name;
+            document.getElementById('mainNav').classList.remove('hidden');
+            document.getElementById('mobileNav').classList.remove('hidden');
+            
+            showPage('search');
+            
+            updateLinksInfo();
+            initMap();
+        }
+
+        // Navegação
+        function showPage(pageId) {
+            const targetPageId = pageId.endsWith('Page') ? pageId : pageId + 'Page';
+
+            // Esconde todas as páginas e limpa classes de layout específicas
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+                
+                // Ponto chave: Garante que as classes de layout da pág de login sejam removidas
+                if (page.id === 'authPage') {
+                    page.classList.remove('flex', 'items-center', 'justify-center');
+                }
+            });
+            
+            const targetPage = document.getElementById(targetPageId);
+            
+            // Adiciona a classe 'active' para tornar a página visível
+            targetPage.classList.add('active');
+            
+            // Se a página alvo for a de login, adiciona de volta as classes de layout
+            if (targetPageId === 'authPage') {
+                targetPage.classList.add('flex', 'items-center', 'justify-center');
+            }
+
+            // Atualiza o estado visual dos botões de navegação
+            if (!pageId.startsWith('auth')) {
+                document.querySelectorAll('.nav-btn, .mobile-nav-btn').forEach(btn => {
+                    btn.classList.remove('text-blue-600', 'font-bold');
+                    btn.classList.add('text-gray-600');
+                });
+                
+                const activeButtons = document.querySelectorAll(`[onclick="showPage('${pageId}')"]`);
+                activeButtons.forEach(btn => {
+                    btn.classList.add('text-blue-600', 'font-bold');
+                    btn.classList.remove('text-gray-600');
+                });
+            }
+        }
+
+        // Gerenciamento de Links
+        function addLink() {
+            const nameInput = document.getElementById('realEstateNameInput');
+            const linkInput = document.getElementById('newLinkInput');
+            const name = nameInput.value.trim();
+            const link = linkInput.value.trim();
+            
+            if (!name) {
+                showNotification('❌ Por favor, insira o nome da imobiliária', 'error');
+                return;
+            }
+            
+            if (!link) {
+                showNotification('❌ Por favor, insira o link do site', 'error');
+                return;
+            }
+            
+            if (savedLinks.length >= 30) {
+                showNotification('❌ Limite máximo de 30 imobiliárias atingido', 'error');
+                return;
+            }
+            
+            let fullUrl = link;
+            if (!link.startsWith('http://') && !link.startsWith('https://')) {
+                fullUrl = 'https://' + link;
+            }
+            
+            if (savedLinks.some(savedLink => savedLink.url === fullUrl)) {
+                showNotification('❌ Esta imobiliária já foi adicionada', 'error');
+                return;
+            }
+            
+            const newLink = {
+                id: Date.now(),
+                name: name,
+                url: fullUrl,
+                domain: extractDomain(fullUrl),
+                addedAt: new Date().toLocaleString('pt-BR'),
+                status: 'active',
+                lastScan: null,
+                propertiesCount: 0,
+                lastChange: 0
+            };
+            
+            savedLinks.push(newLink);
+            nameInput.value = '';
+            linkInput.value = '';
+            updateSavedLinksList();
+            updateLinksInfo();
+            showNotification('✅ Imobiliária adicionada com sucesso!', 'success');
+        }
+
+        function removeLink(linkId) {
+            if (confirm('🗑️ Tem certeza que deseja remover esta imobiliária?')) {
+                savedLinks = savedLinks.filter(link => link.id !== linkId);
+                updateSavedLinksList();
+                updateLinksInfo();
+                showNotification('🗑️ Imobiliária removida com sucesso!', 'info');
+            }
+        }
+
+        function extractDomain(url) {
+            try {
+                return new URL(url).hostname.replace('www.', '');
+            } catch {
+                return 'site-imobiliario.com';
+            }
+        }
+
+        function updateSavedLinksList() {
+            const container = document.getElementById('savedLinksList');
+            const countElement = document.getElementById('linkCount');
+            
+            countElement.textContent = savedLinks.length;
+            
+            if (savedLinks.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-16">
+                        <div class="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-green-100 to-teal-100 rounded-full flex items-center justify-center floating-animation">
+                            <span class="text-4xl">📡</span>
+                        </div>
+                        <h4 class="text-xl font-semibold text-gray-700 mb-2">Nenhuma Imobiliária</h4>
+                        <p class="text-gray-500">Adicione sites para começar o monitoramento</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="space-y-4">
+                    ${savedLinks.map(link => `
+                        <div class="saved-link flex items-center justify-between p-6 bg-white rounded-2xl shadow-sm border border-gray-200">
+                            <div class="flex items-center flex-1">
+                                <div class="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center mr-4">
+                                    <span class="text-white font-bold text-lg">🏢</span>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="font-bold text-lg text-gray-800">${link.name}</div>
+                                    <div class="text-sm text-gray-500 mb-2">${link.domain}</div>
+                                    <div class="text-xs text-gray-400">
+                                        Adicionada: ${link.addedAt}
+                                        ${link.lastScan ? ` • Último scan: ${link.lastScan}` : ''}
+                                    </div>
+                                    <div class="text-xs text-blue-600 font-medium mt-1">
+                                        ${link.propertiesCount} imóveis monitorados
+                                        ${link.lastChange !== 0 ? ` • ${link.lastChange > 0 ? '+' : ''}${link.lastChange} na última varredura` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <span class="px-4 py-2 ${link.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'} rounded-full text-sm font-medium">
+                                    📡 ${link.status === 'active' ? 'Ativo' : 'Inativo'}
+                                </span>
+                                <button onclick="removeLink(${link.id})" 
+                                    class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all text-sm">
+                                    🗑️ Remover
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function updateLinksInfo() {
+            const count = savedLinks.length;
+            const totalProperties = savedLinks.reduce((sum, link) => sum + link.propertiesCount, 0);
+            
+            document.getElementById('linksInfo').textContent = 
+                `📡 ${count} imobiliárias monitoradas • ${totalProperties} imóveis detectados`;
+        }
+
+        // Busca de Imóveis
+        function performSearch() {
+            if (savedLinks.length === 0) {
+                showNotification('❌ Adicione imobiliárias primeiro na página "Imobiliárias"', 'error');
+                showPage('links');
+                return;
+            }
+            
+            const searchBtn = document.getElementById('searchBtn');
+            const spinner = document.getElementById('searchSpinner');
+            const progressContainer = document.getElementById('progressContainer');
+            
+            spinner.classList.remove('hidden');
+            searchBtn.disabled = true;
+            searchBtn.classList.add('opacity-50');
+            progressContainer.classList.remove('hidden');
+            
+            simulateSearchProgress();
+        }
+
+        function simulateSearchProgress() {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const currentSource = document.getElementById('currentSource');
+            
+            let progress = 0;
+            let currentLinkIndex = 0;
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 15 + 10;
+                if (progress > 100) progress = 100;
+                
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${Math.round(progress)}%`;
+                
+                if (currentLinkIndex < savedLinks.length) {
+                    const currentLink = savedLinks[currentLinkIndex];
+                    currentSource.innerHTML = `
+                        <span class="animate-pulse mr-2">🌐</span>
+                        <span>Processando: <strong>${currentLink.name}</strong></span>
+                        <span class="ml-2 text-green-600">✓ Radar ativo</span>
+                    `;
+                    
+                    if (progress >= (currentLinkIndex + 1) * (100 / savedLinks.length)) {
+                        currentLinkIndex++;
+                    }
+                }
+                
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        finishSearch();
+                    }, 1000);
+                }
+            }, 400);
+        }
+
+        function finishSearch() {
+            const searchBtn = document.getElementById('searchBtn');
+            const spinner = document.getElementById('searchSpinner');
+            const progressContainer = document.getElementById('progressContainer');
+            
+            spinner.classList.add('hidden');
+            searchBtn.disabled = false;
+            searchBtn.classList.remove('opacity-50');
+            progressContainer.classList.add('hidden');
+            
+            savedLinks.forEach(link => {
+                const newCount = Math.floor(Math.random() * 50) + 10;
+                const change = newCount - link.propertiesCount;
+                link.propertiesCount = newCount;
+                link.lastChange = change;
+                link.lastScan = new Date().toLocaleString('pt-BR');
+            });
+            
+            allProperties = [...mockProperties];
+            filterProperties();
+            
+            showNotification(`✅ Busca concluída! ${allProperties.length} imóveis encontrados`, 'success');
+        }
+
+        function filterProperties() {
+            const type = document.getElementById('typeFilter').value;
+            const bedrooms = document.getElementById('bedroomsFilter').value;
+            const suites = document.getElementById('suiteFilter').value;
+            const parking = document.getElementById('parkingFilter').value;
+            const location = document.getElementById('locationFilter').value.toLowerCase();
+            const area = parseFloat(document.getElementById('areaFilter').value) || 0;
+            const minPrice = parseFloat(document.getElementById('minPrice').value) || 0;
+            const maxPrice = parseFloat(document.getElementById('maxPrice').value) || Infinity;
+
+            const filtered = allProperties.filter(property => {
+                return (
+                    (!type || property.type === type) &&
+                    (!bedrooms || property.bedrooms >= parseInt(bedrooms)) &&
+                    (!suites || property.suites >= parseInt(suites)) &&
+                    (!parking || property.parking >= parseInt(parking)) &&
+                    (!location || property.location.toLowerCase().includes(location)) &&
+                    (property.area >= area) &&
+                    (property.price >= minPrice && property.price <= maxPrice)
+                );
+            });
+
+            displayProperties(filtered);
+            updateMap(filtered);
+        }
+
+        function clearFilters() {
+            ['typeFilter', 'bedroomsFilter', 'suiteFilter', 'parkingFilter', 
+             'locationFilter', 'areaFilter', 'minPrice', 'maxPrice'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            
+            if (allProperties.length > 0) {
+                filterProperties();
+            }
+            
+            showNotification('🧹 Filtros limpos!', 'info');
+        }
+
+        // Exibição de Propriedades
+        function displayProperties(properties) {
+            const container = document.getElementById('propertiesList');
+            
+            if (properties.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-16">
+                        <div class="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-red-100 to-orange-100 rounded-full flex items-center justify-center">
+                            <span class="text-4xl">😕</span>
+                        </div>
+                        <h4 class="text-xl font-semibold text-gray-700 mb-2">Nenhum resultado</h4>
+                        <p class="text-gray-500">Tente ajustar os filtros ou fazer uma nova busca</p>
+                    </div>
+                `;
+                document.getElementById('resultsCount').textContent = '0 imóveis';
+                return;
+            }
+
+            container.innerHTML = properties.map(createPropertyCard).join('');
+            document.getElementById('resultsCount').textContent = `${properties.length} imóveis`;
+        }
+
+        function createPropertyCard(property) {
+            const methodBadge = property.method === 'bootstrap' ? 
+                '<span class="bg-gradient-to-r from-green-400 to-green-600 text-white text-xs px-3 py-1 rounded-full">🤖 IA Ativa</span>' :
+                '<span class="bg-gradient-to-r from-blue-400 to-blue-600 text-white text-xs px-3 py-1 rounded-full">🧠 Heurística</span>';
+
+            const typeColor = property.type === 'venda' ? 'text-green-600' : 'text-blue-600';
+            const typeIcon = property.type === 'venda' ? '💰' : '🔑';
+
+            return `
+                <div class="property-card border border-gray-200 rounded-2xl p-6 mb-4 cursor-pointer hover:shadow-xl transition-all" onclick="showPropertyOnMap('${property.id}')">
+                    <div class="flex justify-between items-start mb-4">
+                        <h4 class="font-bold text-gray-800 text-lg flex-1 pr-4">${property.title}</h4>
+                        ${methodBadge}
+                    </div>
+                    
+                    <div class="text-2xl font-bold ${typeColor} mb-3 flex items-center">
+                        <span class="mr-2">${typeIcon}</span>
+                        ${formatPrice(property.price)}
+                        <span class="text-sm font-normal text-gray-500 ml-2">(${property.type})</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3 text-sm text-gray-600 mb-4">
+                        <div class="flex items-center"><span class="mr-2">📐</span> ${property.area}m²</div>
+                        <div class="flex items-center"><span class="mr-2">🛏️</span> ${property.bedrooms} quartos</div>
+                        <div class="flex items-center"><span class="mr-2">🛁</span> ${property.suites} suítes</div>
+                        <div class="flex items-center"><span class="mr-2">🚗</span> ${property.parking} vagas</div>
+                    </div>
+                    
+                    <div class="text-sm text-gray-600 mb-4">
+                        <span class="flex items-center"><span class="mr-2">📍</span> ${property.location}</span>
+                    </div>
+                    
+                    <div class="flex justify-between items-center pt-3 border-t border-gray-100">
+                        <span class="text-xs text-gray-500 font-medium">${property.source}</span>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-green-600 font-semibold">${property.completeness}% completo</span>
+                            <a href="${property.url}" target="_blank" class="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs transition-all">
+                                Ver
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showPropertyOnMap(propertyId) {
+            const property = allProperties.find(p => p.id === propertyId);
+            if (property && property.lat && property.lng) {
+                map.setView([property.lat, property.lng], 16);
+                
+                markerCluster.eachLayer(function(layer) {
+                    if (layer.propertyId === propertyId) {
+                        layer.openPopup();
+                    }
+                });
+            }
+        }
+
+        // Mapa
+        function initMap() {
+            if (map) return;
+            
+            map = L.map('map').setView([-23.5505, -46.6333], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            markerCluster = L.markerClusterGroup({
+                chunkedLoading: true,
+                spiderfyOnMaxZoom: true,
+                showCoverageOnHover: false,
+                zoomToBoundsOnClick: true
+            });
+            map.addLayer(markerCluster);
+        }
+
+        function updateMap(properties) {
+            if (!map || !markerCluster) return;
+            
+            markerCluster.clearLayers();
+
+            properties.forEach(property => {
+                if (property.lat && property.lng) {
+                    const iconColor = property.type === 'venda' ? '#10b981' : '#3b82f6';
+                    const icon = L.divIcon({
+                        className: 'custom-marker',
+                        html: `<div style="background-color: ${iconColor}; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${property.type === 'venda' ? '💰' : '🔑'}</div>`,
+                        iconSize: [35, 35],
+                        iconAnchor: [17, 17]
+                    });
+                    
+                    const marker = L.marker([property.lat, property.lng], { icon });
+                    marker.propertyId = property.id;
+                    
+                    const popupContent = `
+                        <div class="p-4 min-w-[300px]">
+                            <h5 class="font-bold text-lg mb-2 text-gray-800">${property.title}</h5>
+                            <div class="text-2xl font-bold text-blue-600 mb-3">${formatPrice(property.price)}</div>
+                            <div class="text-sm text-gray-600 mb-3 space-y-1">
+                                <div class="flex items-center"><span class="mr-2">📐</span> ${property.area}m² • <span class="mr-2 ml-2">🛏️</span> ${property.bedrooms} quartos</div>
+                                <div class="flex items-center"><span class="mr-2">🛁</span> ${property.suites} suítes • <span class="mr-2 ml-2">🚗</span> ${property.parking} vagas</div>
+                                <div class="flex items-center"><span class="mr-2">📍</span> ${property.location}</div>
+                                <div class="flex items-center"><span class="mr-2">🏢</span> ${property.source}</div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-gray-200">
+                                <a href="${property.url}" target="_blank" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-all w-full justify-center">
+                                    <span class="mr-2">🔗</span>
+                                    Ver Anúncio Original
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                    
+                    marker.bindPopup(popupContent, { maxWidth: 350 });
+                    markerCluster.addLayer(marker);
+                }
+            });
+        }
+
+        // Analytics
+        function updateAnalytics() {
+            document.getElementById('totalSources').textContent = savedLinks.length;
+            document.getElementById('totalProperties').textContent = savedLinks.reduce((sum, link) => sum + link.propertiesCount, 0);
+            
+            const lastScan = savedLinks.reduce((latest, link) => {
+                return link.lastScan && (!latest || new Date(link.lastScan) > new Date(latest)) ? link.lastScan : latest;
+            }, null);
+            
+            document.getElementById('lastScanTime').textContent = lastScan || 'Nunca';
+            
+            updateAnalyticsTable();
+            updateAnalyticsChart();
+        }
+
+        function updateAnalyticsTable() {
+            const container = document.getElementById('analyticsTable');
+            
+            if (savedLinks.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 text-gray-500">Nenhuma imobiliária monitorada</div>';
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700">Imobiliária</th>
+                                <th class="text-center py-3 px-4 font-semibold text-gray-700">Imóveis</th>
+                                <th class="text-center py-3 px-4 font-semibold text-gray-700">Última Alteração</th>
+                                <th class="text-center py-3 px-4 font-semibold text-gray-700">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            ${savedLinks.map(link => `
+                                <tr class="hover:bg-gray-50">
+                                    <td class="py-4 px-4">
+                                        <div class="flex items-center">
+                                            <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center mr-3">
+                                                <span class="text-white font-bold text-sm">🏢</span>
+                                            </div>
+                                            <div>
+                                                <div class="font-semibold text-gray-800">${link.name}</div>
+                                                <div class="text-sm text-gray-500">${link.domain}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-4 px-4 text-center">
+                                        <span class="text-2xl font-bold text-blue-600">${link.propertiesCount}</span>
+                                    </td>
+                                    <td class="py-4 px-4 text-center">
+                                        <span class="px-3 py-1 rounded-full text-sm font-medium ${
+                                            link.lastChange > 0 ? 'bg-green-100 text-green-800' : 
+                                            link.lastChange < 0 ? 'bg-red-100 text-red-800' : 
+                                            'bg-gray-100 text-gray-800'
+                                        }">
+                                            ${link.lastChange > 0 ? '+' : ''}${link.lastChange}
+                                        </span>
+                                    </td>
+                                    <td class="py-4 px-4 text-center">
+                                        <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                                            ✅ Ativo
+                                        </span>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function updateAnalyticsChart() {
+            const ctx = document.getElementById('analyticsChart').getContext('2d');
+            
+            if (analyticsChart) {
+                analyticsChart.destroy();
+            }
+            
+            if (savedLinks.length === 0) {
+                return;
+            }
+            
+            analyticsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: savedLinks.map(link => link.name),
+                    datasets: [{
+                        label: 'Imóveis Monitorados',
+                        data: savedLinks.map(link => link.propertiesCount),
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2,
+                        borderRadius: 8,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Utilitários
+        function formatPrice(price) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+                minimumFractionDigits: 0
+            }).format(price);
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            
+            notification.className = `fixed bottom-5 right-5 z-[100] text-white px-6 py-4 rounded-2xl shadow-2xl transition-all transform translate-y-20 opacity-0`;
+            notification.innerHTML = `
+                <div class="flex items-center">
+                    <span class="mr-3 text-lg">${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span>
+                    <span class="font-medium">${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.remove('opacity-0', 'translate-y-20');
+            }, 10);
+
+            setTimeout(() => {
+                notification.classList.add('opacity-0', 'translate-y-20');
+                setTimeout(() => document.body.removeChild(notification), 500);
+            }, 4000);
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inicializa a página de login com as classes de layout corretas
+            showPage('auth');
+
+            ['typeFilter', 'bedroomsFilter', 'suiteFilter', 'parkingFilter', 
+             'locationFilter', 'areaFilter', 'minPrice', 'maxPrice'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('input', filterProperties);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
