@@ -478,7 +478,7 @@
 
     <script>
         // Configuração da API
-        const API_BASE_URL = 'http://localhost:8000'; // Alterar para seu domínio
+        const API_BASE_URL = 'https://radar-api-d7v8.onrender.com/'; // Alterar para seu domínio
         
         // Variáveis globais
         let currentUser = null;
@@ -764,23 +764,52 @@
         }
 
         // Busca de Imóveis
-        function performSearch() {
-            if (savedLinks.length === 0) {
-                showNotification('❌ Adicione imobiliárias primeiro na página "Imobiliárias"', 'error');
-                showPage('links');
-                return;
-            }
-            
+        async function performSearch() {
             const searchBtn = document.getElementById('searchBtn');
             const spinner = document.getElementById('searchSpinner');
-            const progressContainer = document.getElementById('progressContainer');
             
+            // 1. Mostrar feedback visual de que a busca começou
             spinner.classList.remove('hidden');
             searchBtn.disabled = true;
             searchBtn.classList.add('opacity-50');
-            progressContainer.classList.remove('hidden');
-            
-            simulateSearchProgress();
+            document.getElementById('propertiesList').innerHTML = '<div class="text-center py-16"><div class="spinner mx-auto"></div><p class="mt-4 text-gray-600">Buscando imóveis na nuvem...</p></div>';
+
+            try {
+                // 2. FAZ A CHAMADA REAL PARA A SUA API NO RENDER!
+                //    Atenção: ajuste o "/imoveis" se o nome da sua rota for diferente.
+                const response = await fetch(`${API_BASE_URL}/imoveis`);
+
+                if (!response.ok) {
+                    // Se a API retornar um erro (ex: 500, 404), ele será capturado aqui
+                    throw new Error(`Erro na API: ${response.statusText}`);
+                }
+
+                const propertiesFromAPI = await response.json();
+
+                // 3. Usa os dados recebidos da API como a nova fonte de imóveis
+                allProperties = propertiesFromAPI;
+
+                // 4. Aplica os filtros do front-end sobre os dados recebidos
+                filterProperties();
+                
+                // Se nenhum imóvel for encontrado após os filtros, exibe a mensagem correta
+                if (allProperties.length > 0 && document.getElementById('propertiesList').childElementCount === 0) {
+                     displayProperties([]); // Chama com array vazio para mostrar "Nenhum resultado"
+                }
+
+                showNotification(`✅ Busca concluída! ${propertiesFromAPI.length} imóveis encontrados na base.`, 'success');
+
+            } catch (error) {
+                // Se houver qualquer erro de rede ou na API, exibe uma mensagem
+                console.error("Falha ao buscar imóveis:", error);
+                showNotification("❌ Falha ao buscar imóveis. Verifique o console para mais detalhes.", "error");
+                displayProperties([]); // Limpa a lista para não mostrar dados antigos
+            } finally {
+                // 5. Esconder o feedback visual, independentemente se deu certo ou errado
+                spinner.classList.add('hidden');
+                searchBtn.disabled = false;
+                searchBtn.classList.remove('opacity-50');
+            }
         }
 
         function simulateSearchProgress() {

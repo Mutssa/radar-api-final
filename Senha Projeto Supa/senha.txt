@@ -1,0 +1,6 @@
+..2AGAv%@Yx5x$e
+
+supabase
+
+postgresql://postgres:[..2AGAv%@Yx5x$e
+]@db.ajayopsrusrasvzppmrq.supabase.co:5432/postgres
