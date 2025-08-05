@@ -2,5 +2,4 @@
 
 supabase
 
-postgresql://postgres:[..2AGAv%@Yx5x$e
-]@db.ajayopsrusrasvzppmrq.supabase.co:5432/postgres
+postgresql://postgres:[RadarImob2025]@db.ajayopsrusrasvzppmrq.supabase.co:5432/postgres

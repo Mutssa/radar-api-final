@@ -2,7 +2,7 @@ print("--- O script crawler.py começou a ser executado ---")
 from playwright.sync_api import sync_playwright
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
-import re, time, hashlib
+import re, time, hashlib, json, os
 import asyncio
 import asyncpg
 
@@ -13,7 +13,103 @@ RATE_LIMIT_SECONDS = 1.2
 _last_fetch = {}
 
 # ==============================================================================
-# CÓDIGO DE SCRAPING (AGORA COMPLETO)
+# FUNÇÕES DE DIAGNÓSTICO E CONFIGURAÇÃO
+# ==============================================================================
+
+def diagnosticar_conexao():
+    """Testa conectividade e diagnóstica problemas"""
+    print("\n=== DIAGNÓSTICO DE CONECTIVIDADE ===")
+    
+    import socket
+    import urllib.request
+    
+    # Teste 1: DNS do Supabase
+    try:
+        print("1. Testando resolução DNS do Supabase...")
+        socket.gethostbyname("db.ajayopsrusrasvzppmrq.supabase.co")
+        print("   ✅ DNS resolvido com sucesso")
+    except Exception as e:
+        print(f"   ❌ Erro de DNS: {e}")
+        print("   💡 Possíveis soluções:")
+        print("      - Verificar conexão com internet")
+        print("      - Tentar usar DNS público (8.8.8.8, 1.1.1.1)")
+        print("      - Verificar firewall/antivírus")
+    
+    # Teste 2: Conectividade HTTP
+    try:
+        print("2. Testando conectividade HTTP com Supabase...")
+        response = urllib.request.urlopen("https://ajayopsrusrasvzppmrq.supabase.co", timeout=10)
+        print("   ✅ Conectividade HTTP funcionando")
+    except Exception as e:
+        print(f"   ❌ Erro de conectividade: {e}")
+    
+    print("=== FIM DO DIAGNÓSTICO ===\n")
+
+def obter_credenciais_supabase():
+    """Obtém credenciais do Supabase de forma segura"""
+    print("\n=== CONFIGURAÇÃO DE CREDENCIAIS ===")
+    
+    # Tenta carregar de arquivo de configuração
+    config_file = "config.json"
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+                return config.get('database_url')
+        except:
+            pass
+    
+    # Tenta variável de ambiente
+    db_url = os.environ.get('SUPABASE_DATABASE_URL')
+    if db_url:
+        print("Usando credenciais da variável de ambiente.")
+        return db_url
+    
+    # Credenciais padrão (ATENÇÃO: você precisa verificar/corrigir estas)
+    print("Usando credenciais padrão. VERIFIQUE SE ESTÃO CORRETAS!")
+    
+    # URLs possíveis - teste cada uma
+    possible_urls = [
+        # Formato 1: Supabase padrão
+        "postgresql://postgres:RadarImob2025@db.ajayopsrusrasvzppmrq.supabase.co:5432/postgres",
+        
+        # Formato 2: Com parâmetros SSL
+        "postgresql://postgres:RadarImob2025@db.ajayopsrusrasvzppmrq.supabase.co:5432/postgres?sslmode=require",
+        
+        # Formato 3: Com pooler
+        "postgresql://postgres.ajayopsrusrasvzppmrq:RadarImob2025@aws-0-sa-east-1.pooler.supabase.com:5432/postgres",
+        
+        # Formato 4: Connection pooling mode
+        "postgresql://postgres.ajayopsrusrasvzppmrq:RadarImob2025@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1",
+    ]
+    
+    return possible_urls
+
+def salvar_configuracao(database_url):
+    """Salva configuração que funcionou"""
+    config = {"database_url": database_url}
+    with open("config.json", 'w') as f:
+        json.dump(config, f, indent=2)
+    print("Configuração salva em config.json")
+
+async def testar_conexao_banco(database_url):
+    """Testa conexão com o banco de dados"""
+    try:
+        print(f"Testando conexão: {database_url[:50]}...")
+        conn = await asyncpg.connect(database_url)
+        
+        # Teste simples
+        result = await conn.fetchval('SELECT version()')
+        print(f"✅ Conexão bem-sucedida! PostgreSQL: {result[:50]}...")
+        
+        await conn.close()
+        return True
+    except Exception as e:
+        print(f"❌ Falha na conexão: {e}")
+        return False
+
+# ==============================================================================
+# CÓDIGO DE SCRAPING (MANTIDO IGUAL)
 # ==============================================================================
 
 def fetch_rendered(url, timeout=10000):
@@ -339,7 +435,7 @@ async def salvar_dados_no_banco(lista_de_imoveis, database_url):
         raise
 
 # ==============================================================================
-# SEÇÃO DE INICIALIZAÇÃO
+# SEÇÃO DE INICIALIZAÇÃO COM MÚLTIPLAS TENTATIVAS
 # ==============================================================================
 
 async def criar_tabela_links_se_necessario(database_url):
@@ -356,16 +452,18 @@ async def criar_tabela_links_se_necessario(database_url):
         ''')
         await conn.close()
         print("Tabela 'links' verificada/criada com sucesso.")
+        return True
     except Exception as e:
         print(f"Erro ao criar tabela 'links': {e}")
-        raise
+        return False
 
 async def buscar_urls_para_varrer(database_url):
     """Conecta no banco e busca a lista de URLs da tabela 'links'."""
     print("Buscando lista de URLs no banco de dados...")
     try:
         # Primeiro, garantir que a tabela existe
-        await criar_tabela_links_se_necessario(database_url)
+        if not await criar_tabela_links_se_necessario(database_url):
+            return []
         
         conn = await asyncpg.connect(database_url)
         
@@ -393,41 +491,104 @@ async def buscar_urls_para_varrer(database_url):
         
     except Exception as e:
         print(f"Erro ao buscar URLs do banco: {e}")
-        raise
+        return []
+
+# ==============================================================================
+# MODO OFFLINE/FALLBACK
+# ==============================================================================
+
+def executar_modo_offline():
+    """Executa o crawler em modo offline para teste"""
+    print("\n🔄 EXECUTANDO EM MODO OFFLINE/TESTE")
+    print("Sem acesso ao banco de dados. Usando URLs padrão para teste.\n")
+    
+    urls_teste = [
+        'https://www.vivareal.com.br',
+        'https://www.zapimoveis.com.br'
+    ]
+    
+    todos_os_imoveis = []
+    for i, url in enumerate(urls_teste, 1):
+        print(f"\n--- TESTE {i}: Varrendo URL: {url} ---")
+        imoveis_do_site = varrer_e_extrair(url)
+        todos_os_imoveis.extend(imoveis_do_site)
+        print(f"Total acumulado: {len(todos_os_imoveis)} imóveis")
+    
+    print(f"\n✅ TESTE CONCLUÍDO: {len(todos_os_imoveis)} imóveis encontrados")
+    
+    # Salvar em arquivo JSON para verificação
+    if todos_os_imoveis:
+        with open('imoveis_teste.json', 'w', encoding='utf-8') as f:
+            json.dump(todos_os_imoveis, f, indent=2, ensure_ascii=False)
+        print(f"Dados salvos em 'imoveis_teste.json' para verificação.")
+
+# ==============================================================================
+# PROGRAMA PRINCIPAL
+# ==============================================================================
 
 if __name__ == "__main__":
-    # ------------------- CORRIJA ESTA LINHA (REMOVA O ESPAÇO) -------------------
-    SUA_CONNECTION_STRING_DO_SUPABASE = "postgresql://postgres.ajayopsrusrasvzppmrq:RadarImob2025@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
-    # ----------------------------------------------------------------------------
+    print("🚀 INICIANDO RADAR IMOBILIÁRIO CRAWLER")
     
-    try:
-        print("ETAPA 1: Tentando buscar URLs do Supabase...")
-        urls_a_varrer = asyncio.run(buscar_urls_para_varrer(SUA_CONNECTION_STRING_DO_SUPABASE))
+    # Diagnóstico inicial
+    diagnosticar_conexao()
+    
+    # Obter credenciais
+    credenciais = obter_credenciais_supabase()
+    
+    if isinstance(credenciais, list):
+        # Testar múltiplas URLs
+        print("Testando múltiplas configurações de conexão...")
+        database_url_funcional = None
         
-        print(f"ETAPA 2: Sucesso! Encontradas {len(urls_a_varrer)} URLs. Iniciando o scraper...")
+        for i, url in enumerate(credenciais, 1):
+            print(f"\nTentativa {i}/{len(credenciais)}:")
+            try:
+                sucesso = asyncio.run(testar_conexao_banco(url))
+                if sucesso:
+                    database_url_funcional = url
+                    salvar_configuracao(url)
+                    break
+            except Exception as e:
+                print(f"Falhou: {e}")
+                continue
+        
+        if not database_url_funcional:
+            print("\n❌ NENHUMA CONFIGURAÇÃO DE BANCO FUNCIONOU")
+            print("Executando em modo offline para teste...")
+            executar_modo_offline()
+            exit(1)
+        
+        credenciais = database_url_funcional
+    
+    # Executar crawler principal
+    try:
+        print("\n🎯 ETAPA 1: Buscando URLs do banco...")
+        urls_a_varrer = asyncio.run(buscar_urls_para_varrer(credenciais))
         
         if not urls_a_varrer:
-            print("Nenhuma URL encontrada no banco de dados para varrer.")
+            print("Nenhuma URL encontrada. Executando modo offline...")
+            executar_modo_offline()
         else:
-            todos_os_imoveis = []
+            print(f"🎯 ETAPA 2: Iniciando scraping de {len(urls_a_varrer)} URLs...")
             
+            todos_os_imoveis = []
             for i, url in enumerate(urls_a_varrer, 1):
-                print(f"\n--- ETAPA 3.{i}: Varrendo URL: {url} ---")
+                print(f"\n--- ETAPA 3.{i}: Varrendo {url} ---")
                 imoveis_do_site = varrer_e_extrair(url)
                 todos_os_imoveis.extend(imoveis_do_site)
                 print(f"Total acumulado: {len(todos_os_imoveis)} imóveis")
 
-            print(f"\nETAPA 4: Varredura concluída. Total: {len(todos_os_imoveis)} imóveis encontrados.")
+            print(f"\n🎯 ETAPA 4: Salvando {len(todos_os_imoveis)} imóveis no banco...")
             
             if todos_os_imoveis:
-                print("Salvando no banco de dados...")
-                asyncio.run(salvar_dados_no_banco(todos_os_imoveis, SUA_CONNECTION_STRING_DO_SUPABASE))
+                asyncio.run(salvar_dados_no_banco(todos_os_imoveis, credenciais))
+                print("✅ PROCESSO CONCLUÍDO COM SUCESSO!")
             else:
-                print("Nenhum imóvel encontrado nos sites.")
+                print("⚠️ Nenhum imóvel encontrado nos sites.")
 
     except Exception as e:
-        print(f"\nERRO GERAL: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"\n❌ ERRO GERAL: {e}")
+        print("Tentando executar em modo offline...")
+        executar_modo_offline()
 
     print("\n--- O script crawler.py terminou a execução. ---")
