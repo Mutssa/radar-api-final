@@ -397,7 +397,7 @@ async def buscar_urls_para_varrer(database_url):
 
 if __name__ == "__main__":
     # ------------------- CORRIJA ESTA LINHA (REMOVA O ESPAÇO) -------------------
-    SUA_CONNECTION_STRING_DO_SUPABASE = "postgresql://postgres.ajayopsrusrasvzppmrq:RadarImob2025@aws-0-us-east-1.pooler.supabase.com:6543/postgres?ssl=require"
+    SUA_CONNECTION_STRING_DO_SUPABASE = "postgresql://postgres.ajayopsrusrasvzppmrq:radarimobiliario@aws-0-us-east-1.pooler.supabase.com:6543/postgres?ssl=require"
     # ----------------------------------------------------------------------------
     
     try:
