@@ -15,7 +15,7 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -478,7 +478,7 @@
 
     <script>
         // Configuração da API
-        const API_BASE_URL = 'https://radar-api-d7v8.onrender.com/'; // Alterar para seu domínio
+        const API_BASE_URL = 'https://radar-api-d7v8.onrender.com'; // Alterar para seu domínio
         
         // Variáveis globais
         let currentUser = null;
@@ -596,27 +596,27 @@
         function showPage(pageId) {
             const targetPageId = pageId.endsWith('Page') ? pageId : pageId + 'Page';
 
-            // Esconde todas as páginas e limpa classes de layout específicas
+            // Esconde todas as páginas
             document.querySelectorAll('.page').forEach(page => {
                 page.classList.remove('active');
-                
-                // Ponto chave: Garante que as classes de layout da pág de login sejam removidas
-                if (page.id === 'authPage') {
+                 if (page.id === 'authPage') { // <-- BUG CORRIGIDO AQUI
                     page.classList.remove('flex', 'items-center', 'justify-center');
                 }
             });
             
+            // CORREÇÃO: A chamada para buscar os links deve ficar AQUI, fora do loop.
+            if (pageId === 'links') {
+                fetchAndDisplayLinks(); 
+            }
+
             const targetPage = document.getElementById(targetPageId);
-            
-            // Adiciona a classe 'active' para tornar a página visível
             targetPage.classList.add('active');
             
-            // Se a página alvo for a de login, adiciona de volta as classes de layout
             if (targetPageId === 'authPage') {
                 targetPage.classList.add('flex', 'items-center', 'justify-center');
             }
 
-            // Atualiza o estado visual dos botões de navegação
+            // ... (resto da função continua igual) ...
             if (!pageId.startsWith('auth')) {
                 document.querySelectorAll('.nav-btn, .mobile-nav-btn').forEach(btn => {
                     btn.classList.remove('text-blue-600', 'font-bold');
@@ -632,55 +632,56 @@
         }
 
         // Gerenciamento de Links
-        function addLink() {
+              // NOVA VERSÃO da função addLink
+        async function addLink() {
             const nameInput = document.getElementById('realEstateNameInput');
             const linkInput = document.getElementById('newLinkInput');
             const name = nameInput.value.trim();
-            const link = linkInput.value.trim();
-            
-            if (!name) {
-                showNotification('❌ Por favor, insira o nome da imobiliária', 'error');
+            const url = linkInput.value.trim();
+
+            if (!name || !url) {
+                showNotification('❌ Nome e URL são obrigatórios.', 'error');
                 return;
             }
-            
-            if (!link) {
-                showNotification('❌ Por favor, insira o link do site', 'error');
-                return;
+
+            // Faz a chamada POST para a sua API no Render
+            try {
+                const response = await fetch(`${API_BASE_URL}/links`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name: name, url: url }),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.detail || 'Erro desconhecido');
+                }
+
+                showNotification('✅ Imobiliária adicionada com sucesso!', 'success');
+                nameInput.value = '';
+                linkInput.value = '';
+                fetchAndDisplayLinks(); // Atualiza a lista na tela com os dados do banco
+
+            } catch (error) {
+                showNotification(`❌ Erro: ${error.message}`, 'error');
             }
-            
-            if (savedLinks.length >= 30) {
-                showNotification('❌ Limite máximo de 30 imobiliárias atingido', 'error');
-                return;
+        }
+
+        // NOVA FUNÇÃO para buscar e mostrar os links
+       async function fetchAndDisplayLinks() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/links`);
+                if (!response.ok) {
+                    throw new Error('Não foi possível buscar a lista de imobiliárias.');
+                }
+                const links = await response.json();
+                updateSavedLinksList(links); // Chama a função que desenha a lista na tela
+            } catch (error) {
+                showNotification(`❌ ${error.message}`, 'error');
             }
-            
-            let fullUrl = link;
-            if (!link.startsWith('http://') && !link.startsWith('https://')) {
-                fullUrl = 'https://' + link;
-            }
-            
-            if (savedLinks.some(savedLink => savedLink.url === fullUrl)) {
-                showNotification('❌ Esta imobiliária já foi adicionada', 'error');
-                return;
-            }
-            
-            const newLink = {
-                id: Date.now(),
-                name: name,
-                url: fullUrl,
-                domain: extractDomain(fullUrl),
-                addedAt: new Date().toLocaleString('pt-BR'),
-                status: 'active',
-                lastScan: null,
-                propertiesCount: 0,
-                lastChange: 0
-            };
-            
-            savedLinks.push(newLink);
-            nameInput.value = '';
-            linkInput.value = '';
-            updateSavedLinksList();
-            updateLinksInfo();
-            showNotification('✅ Imobiliária adicionada com sucesso!', 'success');
         }
 
         function removeLink(linkId) {
@@ -700,18 +701,15 @@
             }
         }
 
-        function updateSavedLinksList() {
+        function updateSavedLinksList(links) {
             const container = document.getElementById('savedLinksList');
             const countElement = document.getElementById('linkCount');
             
-            countElement.textContent = savedLinks.length;
+            countElement.textContent = links.length;
             
-            if (savedLinks.length === 0) {
+            if (links.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-16">
-                        <div class="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-green-100 to-teal-100 rounded-full flex items-center justify-center floating-animation">
-                            <span class="text-4xl">📡</span>
-                        </div>
                         <h4 class="text-xl font-semibold text-gray-700 mb-2">Nenhuma Imobiliária</h4>
                         <p class="text-gray-500">Adicione sites para começar o monitoramento</p>
                     </div>
@@ -721,34 +719,13 @@
             
             container.innerHTML = `
                 <div class="space-y-4">
-                    ${savedLinks.map(link => `
+                    ${links.map(link => `
                         <div class="saved-link flex items-center justify-between p-6 bg-white rounded-2xl shadow-sm border border-gray-200">
-                            <div class="flex items-center flex-1">
-                                <div class="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center mr-4">
-                                    <span class="text-white font-bold text-lg">🏢</span>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="font-bold text-lg text-gray-800">${link.name}</div>
-                                    <div class="text-sm text-gray-500 mb-2">${link.domain}</div>
-                                    <div class="text-xs text-gray-400">
-                                        Adicionada: ${link.addedAt}
-                                        ${link.lastScan ? ` • Último scan: ${link.lastScan}` : ''}
-                                    </div>
-                                    <div class="text-xs text-blue-600 font-medium mt-1">
-                                        ${link.propertiesCount} imóveis monitorados
-                                        ${link.lastChange !== 0 ? ` • ${link.lastChange > 0 ? '+' : ''}${link.lastChange} na última varredura` : ''}
-                                    </div>
-                                </div>
+                            <div>
+                                <div class="font-bold text-lg text-gray-800">${link.name}</div>
+                                <div class="text-sm text-gray-500">${link.url}</div>
                             </div>
-                            <div class="flex items-center space-x-3">
-                                <span class="px-4 py-2 ${link.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'} rounded-full text-sm font-medium">
-                                    📡 ${link.status === 'active' ? 'Ativo' : 'Inativo'}
-                                </span>
-                                <button onclick="removeLink(${link.id})" 
-                                    class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all text-sm">
-                                    🗑️ Remover
-                                </button>
-                            </div>
+                            {/* Futuramente, você pode adicionar um botão de remover aqui */}
                         </div>
                     `).join('')}
                 </div>
@@ -810,67 +787,6 @@
                 searchBtn.disabled = false;
                 searchBtn.classList.remove('opacity-50');
             }
-        }
-
-        function simulateSearchProgress() {
-            const progressBar = document.getElementById('progressBar');
-            const progressText = document.getElementById('progressText');
-            const currentSource = document.getElementById('currentSource');
-            
-            let progress = 0;
-            let currentLinkIndex = 0;
-            
-            const interval = setInterval(() => {
-                progress += Math.random() * 15 + 10;
-                if (progress > 100) progress = 100;
-                
-                progressBar.style.width = `${progress}%`;
-                progressText.textContent = `${Math.round(progress)}%`;
-                
-                if (currentLinkIndex < savedLinks.length) {
-                    const currentLink = savedLinks[currentLinkIndex];
-                    currentSource.innerHTML = `
-                        <span class="animate-pulse mr-2">🌐</span>
-                        <span>Processando: <strong>${currentLink.name}</strong></span>
-                        <span class="ml-2 text-green-600">✓ Radar ativo</span>
-                    `;
-                    
-                    if (progress >= (currentLinkIndex + 1) * (100 / savedLinks.length)) {
-                        currentLinkIndex++;
-                    }
-                }
-                
-                if (progress >= 100) {
-                    clearInterval(interval);
-                    setTimeout(() => {
-                        finishSearch();
-                    }, 1000);
-                }
-            }, 400);
-        }
-
-        function finishSearch() {
-            const searchBtn = document.getElementById('searchBtn');
-            const spinner = document.getElementById('searchSpinner');
-            const progressContainer = document.getElementById('progressContainer');
-            
-            spinner.classList.add('hidden');
-            searchBtn.disabled = false;
-            searchBtn.classList.remove('opacity-50');
-            progressContainer.classList.add('hidden');
-            
-            savedLinks.forEach(link => {
-                const newCount = Math.floor(Math.random() * 50) + 10;
-                const change = newCount - link.propertiesCount;
-                link.propertiesCount = newCount;
-                link.lastChange = change;
-                link.lastScan = new Date().toLocaleString('pt-BR');
-            });
-            
-            allProperties = [...mockProperties];
-            filterProperties();
-            
-            showNotification(`✅ Busca concluída! ${allProperties.length} imóveis encontrados`, 'success');
         }
 
         function filterProperties() {
