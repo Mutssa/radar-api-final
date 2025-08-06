@@ -678,20 +678,41 @@
                     throw new Error('Não foi possível buscar a lista de imobiliárias.');
                 }
                 const links = await response.json();
-                updateSavedLinksList(links); // Chama a função que desenha a lista na tela
+
+                // A MÁGICA ACONTECE AQUI:
+                // 1. Atualiza a nossa variável de memória global com os dados do banco
+                savedLinks = links; 
+
+                // 2. Chama as funções que atualizam as outras partes do site
+                updateSavedLinksList(savedLinks); // Desenha a lista na aba "Imobiliárias"
+                updateLinksInfo();               // Atualiza o contador na página de "Busca"
+                updateAnalytics();               // Atualiza os gráficos e números do "Analytics"
+                
             } catch (error) {
                 showNotification(`❌ ${error.message}`, 'error');
             }
         }
 
-        function removeLink(linkId) {
-            if (confirm('🗑️ Tem certeza que deseja remover esta imobiliária?')) {
-                savedLinks = savedLinks.filter(link => link.id !== linkId);
-                updateSavedLinksList();
-                updateLinksInfo();
-                showNotification('🗑️ Imobiliária removida com sucesso!', 'info');
+        async function removeLink(linkId) {
+             if (!confirm('🗑️ Tem certeza que deseja remover esta imobiliária?')) {
+             return;
             }
+            try {
+             const response = await fetch(`${API_BASE_URL}/links/${linkId}`, {
+            method: 'DELETE'
+                });
+
+            if (!response.ok) {
+            throw new Error("Falha ao deletar o link.");
         }
+        
+        showNotification('🗑️ Imobiliária removida com sucesso!', 'info');
+        fetchAndDisplayLinks(); // Atualiza a lista na tela
+        
+    } catch (error) {
+        showNotification(`❌ Erro: ${error.message}`, 'error');
+    }
+}
 
         function extractDomain(url) {
             try {
@@ -702,35 +723,32 @@
         }
 
         function updateSavedLinksList(links) {
-            const container = document.getElementById('savedLinksList');
-            const countElement = document.getElementById('linkCount');
-            
-            countElement.textContent = links.length;
-            
-            if (links.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-16">
-                        <h4 class="text-xl font-semibold text-gray-700 mb-2">Nenhuma Imobiliária</h4>
-                        <p class="text-gray-500">Adicione sites para começar o monitoramento</p>
+    const container = document.getElementById('savedLinksList');
+    const countElement = document.getElementById('linkCount');
+    countElement.textContent = links.length;
+    
+    if (links.length === 0) {
+        // ... (código para lista vazia continua o mesmo) ...
+        return;
+    }
+    
+    container.innerHTML = `
+        <div class="space-y-4">
+            ${links.map(link => `
+                <div class="saved-link flex items-center justify-between p-6 bg-white rounded-2xl shadow-sm border border-gray-200">
+                    <div>
+                        <div class="font-bold text-lg text-gray-800">${link.name}</div>
+                        <div class="text-sm text-gray-500">${link.url}</div>
                     </div>
-                `;
-                return;
-            }
-            
-            container.innerHTML = `
-                <div class="space-y-4">
-                    ${links.map(link => `
-                        <div class="saved-link flex items-center justify-between p-6 bg-white rounded-2xl shadow-sm border border-gray-200">
-                            <div>
-                                <div class="font-bold text-lg text-gray-800">${link.name}</div>
-                                <div class="text-sm text-gray-500">${link.url}</div>
-                            </div>
-                            {/* Futuramente, você pode adicionar um botão de remover aqui */}
-                        </div>
-                    `).join('')}
+                    <button onclick="removeLink(${link.id})" 
+                        class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-all text-sm font-semibold">
+                        🗑️ Excluir
+                    </button>
                 </div>
-            `;
-        }
+            `).join('')}
+        </div>
+    `;
+}
 
         function updateLinksInfo() {
             const count = savedLinks.length;
@@ -970,19 +988,25 @@
         }
 
         // Analytics
-        function updateAnalytics() {
-            document.getElementById('totalSources').textContent = savedLinks.length;
-            document.getElementById('totalProperties').textContent = savedLinks.reduce((sum, link) => sum + link.propertiesCount, 0);
-            
-            const lastScan = savedLinks.reduce((latest, link) => {
-                return link.lastScan && (!latest || new Date(link.lastScan) > new Date(latest)) ? link.lastScan : latest;
-            }, null);
-            
-            document.getElementById('lastScanTime').textContent = lastScan || 'Nunca';
-            
-            updateAnalyticsTable();
-            updateAnalyticsChart();
-        }
+        // NO SEU index.html, SUBSTITUA A FUNÇÃO ANTIGA POR ESTA:
+function updateAnalytics() {
+    // Usa a variável global 'savedLinks' para o total de imobiliárias
+    document.getElementById('totalSources').textContent = savedLinks.length;
+
+    // Usa a variável global 'allProperties' para o total de imóveis
+    document.getElementById('totalProperties').textContent = allProperties.length;
+    
+    // Simplesmente mostra a data e hora atual como "Último Scan"
+    // Uma versão mais avançada poderia buscar isso do banco de dados
+    if (allProperties.length > 0) {
+        document.getElementById('lastScanTime').textContent = new Date().toLocaleString('pt-BR');
+    } else {
+        document.getElementById('lastScanTime').textContent = 'Nunca';
+    }
+    
+    updateAnalyticsTable();
+    updateAnalyticsChart();
+}
 
         function updateAnalyticsTable() {
             const container = document.getElementById('analyticsTable');

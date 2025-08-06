@@ -88,3 +88,23 @@ async def buscar_imoveis():
     except Exception as e:
         print(f"Erro ao buscar dados no banco: {e}")
         raise HTTPException(status_code=500, detail="Erro interno ao buscar dados dos imóveis.")
+    
+    # NO SEU main.py, ADICIONE ESTE NOVO ENDPOINT:
+@app.delete("/links/{link_id}")
+async def deletar_link(link_id: int):
+    """Deleta um link do banco de dados pelo seu ID."""
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        # Executa o comando DELETE para o ID fornecido
+        result = await conn.execute('DELETE FROM links WHERE id = $1', link_id)
+        await conn.close()
+        
+        if result == "DELETE 1":
+            return {"status": "success", "message": "Link deletado com sucesso."}
+        else:
+            raise HTTPException(status_code=404, detail="Link não encontrado.")
+            
+    except Exception as e:
+        print(f"Erro ao deletar link: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao deletar link.")

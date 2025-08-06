@@ -87,40 +87,97 @@ def crawl_domain(start_url):
                 queue.append((full, depth + 1))
     return pages
 
+# NO SEU crawler.py, SUBSTITUA A FUNÇÃO ANTIGA POR ESTA:
 def extract_cards_from_soup(soup, base_url):
-    """Extrai cards de imóveis de uma página web"""
     cards = []
-    
-    # Seletores comuns para cards de imóveis
-    selectors = [
-        '.property-card', '.imovel-card', '.listing-card',
-        '.property-item', '.imovel-item', '.listing-item',
-        '[data-testid*="property"]', '[data-testid*="listing"]',
-        '.card', '.item', '.result'
-    ]
-    
-    for selector in selectors:
-        elements = soup.select(selector)
-        if elements:
-            print(f"Encontrados {len(elements)} elementos com seletor: {selector}")
-            break
-    
-    if not elements:
-        # Fallback: procurar por qualquer elemento que contenha preço
-        elements = soup.find_all(text=re.compile(r'R\$\s*[\d.,]+'))
-        elements = [elem.parent for elem in elements if elem.parent]
-        print(f"Fallback: Encontrados {len(elements)} elementos com preços")
-    
-    for element in elements:
-        try:
-            card = extract_property_data(element, base_url)
-            if card and card.get('price'):  # Só adiciona se tiver pelo menos preço
-                cards.append(card)
-        except Exception as e:
-            print(f"Erro ao extrair dados do card: {e}")
+    # Procura por contêineres que pareçam ser um "card" de imóvel
+    for tag in soup.find_all(["div", "article", "li"], class_=re.compile(r"card|property|listing|item", re.I)):
+        text = tag.get_text(" ", strip=True)
+        low = text.lower()
+
+        # Condição mínima para ser um card: ter um preço
+        if "r$" not in low:
             continue
-    
-    return cards
+
+        # --- Extração Inteligente de Dados ---
+        
+        # Título
+        titulo_tag = tag.select_one("h1, h2, h3, h4, [class*='title'], [class*='heading']")
+        titulo = titulo_tag.get_text(strip=True) if titulo_tag else "Título não encontrado"
+
+        # Preço
+        preco = None
+        # Procura por números grandes, que são mais prováveis de ser o preço de venda/aluguel
+        precos_encontrados = re.findall(r"r\$\s*([\d\.,]+)", low)
+        if precos_encontrados:
+            try:
+                # Pega o maior número encontrado, que tende a ser o preço principal
+                preco = max([float(p.replace(".", "").replace(",", ".")) for p in precos_encontrados])
+            except:
+                pass
+
+        # Tipo (Venda/Aluguel)
+        tipo = "venda"
+        if re.search(r"\b(aluguel|loca[cç][ãa]o|aluga-se|por m[eê]s|mensal)\b", low):
+            tipo = "aluguel"
+        
+        # Área
+        area = None
+        m_area = re.search(r"([\d\.,]+)\s*m²", low)
+        if m_area:
+            try: area = float(m_area.group(1).replace(",", "."))
+            except: pass
+
+        # Quartos, Suítes, Vagas (procurando por ícones ou texto)
+        quartos = None
+        suites = None
+        vagas = None
+        m_quartos = re.search(r"(\d+)\s*(quarto|dorm)", low)
+        if m_quartos: quartos = int(m_quartos.group(1))
+        
+        m_suites = re.search(r"(\d+)\s*suíte", low)
+        if m_suites: suites = int(m_suites.group(1))
+
+        m_vagas = re.search(r"(\d+)\s*(vaga|garagem)", low)
+        if m_vagas: vagas = int(m_vagas.group(1))
+
+        # Localização (um pouco mais difícil, tentamos pegar o que parece ser um endereço)
+        local_tag = tag.select_one("[class*='address'], [class*='location']")
+        local = local_tag.get_text(strip=True) if local_tag else "Local não encontrado"
+
+        # Link
+        link_tag = tag.find("a", href=True)
+        link = urljoin(base_url, link_tag["href"]) if link_tag else base_url
+
+        # Para o mapa funcionar, precisaríamos de lat/lng. Isso requer um passo extra
+        # chamado Geocodificação (converter o endereço em coordenadas), que é mais avançado.
+        # Por enquanto, vamos deixar nulo.
+        
+        card_data = {
+            "id": link, # Usar o link como ID único
+            "title": titulo,
+            "price": preco,
+            "type": tipo,
+            "area": area,
+            "bedrooms": quartos,
+            "suites": suites,
+            "parking": vagas,
+            "location": local,
+            "lat": None, # Será nulo por enquanto
+            "lng": None, # Será nulo por enquanto
+            "url": link,
+            "source": urlparse(base_url).netloc,
+            "completeness": 0, # Vamos calcular depois
+            "method": "Heurística"
+        }
+        
+        # Calcula o "nível de preenchimento" do card
+        campos_preenchidos = sum(1 for v in card_data.values() if v is not None)
+        card_data["completeness"] = int((campos_preenchidos / len(card_data)) * 100)
+        
+        cards.append(card_data)
+
+    return dedupe_imoveis(cards) # A função de deduplicação continua a mesma
 
 def extract_property_data(element, base_url):
     """Extrai dados de um elemento de imóvel"""
